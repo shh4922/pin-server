@@ -9,7 +9,7 @@ const {
     PAYPAL_SECRET,
     PAYPAL_API_BASE = 'https://api-m.sandbox.paypal.com',
     EXPECTED_PLAN_ID,
-    PORT = 443,
+    PORT = 3000,
 } = process.env;
 
 const app = express();
@@ -31,27 +31,51 @@ const users = new Map();          // key: email, value: { email, subscriptionId,
 const subs  = new Map();          // key: subscriptionId, value: last payload
 
 
-
-
 /**  로그 저장 유틸  */
 function saveLog(label, data) {
     const line = `[${new Date().toISOString()}] ${label}\n` +
         JSON.stringify(data, null, 2) + "\n\n";
     fs.appendFileSync("server.log", line, "utf8");
-    console.log(line); // 콘솔에도 찍기
+    // console.log(line); // 콘솔에도 찍기
 }
+
+
+
+
+
+
+
+
+
+
 
 /** 유틸: PayPal Access Token 받기 */
 async function getAccessToken() {
-    const { data } = await axios.post(`${BASE}/v1/oauth2/token`, "grant_type=client_credentials", {
+    const { data } = await axios.post(`${PAYPAL_API_BASE}/v1/oauth2/token`, "grant_type=client_credentials", {
         auth: { username: CLIENT_ID, password: SECRET },
         headers: { "Content-Type": "application/x-www-form-urlencoded" }
     });
     return data.access_token;
 }
 
+async function getPayInfo(token, saleId) {
+    const { data } = await axios.get(
+        `${PAYPAL_API_BASE}/v1/payments/sale/${saleId}`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
+    console.log(data);
+    return data;
+}
+
+
 /** 디버그: 헬스체크 */
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+
 
 /**
  * onApprove 이후 클라이언트가 호출:
@@ -126,25 +150,27 @@ app.post("/paypal/webhook", express.json({ type: "*/*" }), async (req, res) => {
             if (subscriptionId) {
                 // 최신 상태 재조회
                 const token = await getAccessToken();
-                const r = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                const sub = await r.json();
+                const result = await getPayInfo(token, subscriptionId)
+                console.info("result", result)
+                // const r = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
+                //     headers: { Authorization: `Bearer ${token}` },
+                // });
+                // const sub = await r.json();
 
-                saveLog("SUBSCRIPTION FETCH", sub); // 📝 구독 상세도 저장
+                // saveLog("SUBSCRIPTION FETCH", sub); // 📝 구독 상세도 저장
 
                 // DB 업데이트 로직 (예시)
-                for (const [k, v] of users.entries()) {
-                    if (v.subscriptionId === subscriptionId) {
-                        users.set(k, {
-                            ...v,
-                            status: sub.status,
-                            planId: sub.plan_id,
-                            updatedAt: new Date().toISOString(),
-                            lastEvent: type,
-                        });
-                    }
-                }
+                // for (const [k, v] of users.entries()) {
+                //     if (v.subscriptionId === subscriptionId) {
+                //         users.set(k, {
+                //             ...v,
+                //             status: sub.status,
+                //             planId: sub.plan_id,
+                //             updatedAt: new Date().toISOString(),
+                //             lastEvent: type,
+                //         });
+                //     }
+                // }
             }
         }
     } catch (e) {
