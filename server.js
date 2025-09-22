@@ -94,6 +94,7 @@ app.post('/api/subscriptions/confirm', async (req, res) => {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const sub = await r.json();
+        saveLog("billing/subscriptions/${subscriptionId}",sub);
 
         // 간단 검증
         const status = sub.status;            // APPROVAL_PENDING, ACTIVE, CANCELLED 등
